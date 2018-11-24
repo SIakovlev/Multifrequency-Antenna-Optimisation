@@ -1,0 +1,7 @@
+{
+  "number_of_antenna_elements" : 100,
+  "distance_between_elements" : 0.5,
+  "lambda_1" : 4,
+  "lambda_2" : 5,
+  "phi_step" : 0.1
+}
