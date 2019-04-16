@@ -55,10 +55,15 @@ class Antenna:
 
     def set_objective(self, weights):
 
-        def objective(J):
+        def objective(J, info):
             J = J.reshape(-1, 1)
             list_J = np.split(np.exp(J), self.n_currents)
-            return f(self.afs, list_J, self.beams, weights)
+            f_value, gradf_value = f(self.afs, list_J, self.beams, weights)
+
+            if not info['iter_number'] % 10:
+                print(f"{info['iter_number']:<15}| {f_value:<25} | {np.linalg.norm(gradf_value):<25} |")
+            info['iter_number'] += 1
+            return f_value, gradf_value
 
         self.objective = objective
 
@@ -93,13 +98,16 @@ class Antenna:
 
         x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps)[0].reshape(-1, )
 
-        print("Initial norm of residual: {}".format(self.objective(x0)[0]))
+        # print("Initial norm of residual: {}".format(self.objective(x0)[0]))
+        print(f"{'Iter number':<15}| {'Function value':<25} | {'Gradient norm':<25}")
+        print(f"{'========================================================================':<50}")
         result = minimize(fun=self.objective,
                           x0=x0,
+                          args=({'iter_number': 0},),
                           constraints=self.cons,
                           **params["general"],
                           options=params["options"])
-        print("Optimisation problem solved. Resulting norm of residual: {}".format(self.objective(result.x)[0]))
+        # print("Optimisation problem solved. Resulting norm of residual: {}".format(self.objective(result.x)[0]))
 
         return np.split(result.x, self.n_currents)
 
