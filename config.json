@@ -1,7 +1,19 @@
 {
-  "number_of_antenna_elements" : 100,
-  "distance_between_elements" : 0.5,
-  "lambda_1" : 4,
-  "lambda_2" : 5,
-  "phi_step" : 0.1
+  "antenna_params" : {
+    "number_of_antenna_elements" : 100,
+    "distance_between_elements" : 0.5,
+    "wavelengths" : [4, 5.5],
+    "beam_resolution" : 1
+  },
+  "optimisation_params": {
+    "general": {
+      "jac": true,
+      "method": "SLSQP"
+    },
+    "options": {
+      "ftol": 1e-8,
+      "disp": true,
+      "maxiter": 2000
+    }
+  }
 }
