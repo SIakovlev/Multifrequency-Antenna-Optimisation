@@ -8,12 +8,11 @@
   "optimisation_params": {
     "general": {
       "jac": true,
-      "method": "SLSQP"
+      "method": "trust-constr"
     },
     "options": {
-      "ftol": 1e-8,
       "disp": true,
-      "maxiter": 2000
+      "maxiter": 5000
     }
   }
 }

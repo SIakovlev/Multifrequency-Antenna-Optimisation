@@ -1,24 +1,64 @@
 import numpy as np
 import itertools
-from scipy.optimize import minimize
+from scipy.optimize import minimize, LinearConstraint, BFGS
 from utils import plotter
 
 
-def f(A, x, b, weight):
+def fg(A, x, b, weight):
     result = 0
     grad_list = []
     for A_i, x_i, b_i, w_i in zip(A, x, b, weight):
-        x_i = np.asarray(x_i, dtype=np.float128)
-        b_i = np.asarray(b_i, dtype=np.float128)
-        result += w_i * np.linalg.norm(abs(A_i @ x_i) ** 2 - abs(b_i) ** 2)**2
+
+        result += w_i * np.linalg.norm(abs(A_i @ x_i) ** 2 - abs(b_i) ** 2, 2)**2
 
         grad_k = 0
         for k in range(A_i.shape[0]):
             Q_k = np.real(A_i[k, :].reshape(1, -1).conj().T @ A_i[k, :].reshape(1, -1))
             grad_k += 4 * (x_i.T @ Q_k @ x_i - abs(b_i[k, :]) ** 2) * Q_k @ x_i * x_i
-        grad_list.append(grad_k)
+        grad_list.append(w_i * grad_k)
 
     return result, np.vstack(grad_list)
+
+
+def g(A, x, b, weight):
+
+    grad_list = []
+    for A_i, x_i, b_i, w_i in zip(A, x, b, weight):
+
+        grad_k = 0
+        for k in range(A_i.shape[0]):
+            Q_k = np.real(A_i[k, :].reshape(1, -1).conj().T @ A_i[k, :].reshape(1, -1))
+            grad_k += 4 * (x_i.T @ Q_k @ x_i - abs(b_i[k, :]) ** 2) * Q_k @ x_i * x_i
+        grad_list.append(w_i * grad_k)
+
+    return np.vstack(grad_list)
+
+
+def f(A, x, b, weight):
+
+    result = 0
+    for A_i, x_i, b_i, w_i in zip(A, x, b, weight):
+
+        result += w_i * np.linalg.norm(abs(A_i @ x_i) ** 2 - abs(b_i) ** 2, 2)**2
+
+    return result
+
+
+def h(A, x, b, weight):
+    hess_list = []
+    for A_i, x_i, b_i, w_i in zip(A, x, b, weight):
+
+        hess_k = 0
+        for k in range(A_i.shape[0]):
+            Q_k = np.real(A_i[k, :].reshape(1, -1).conj().T @ A_i[k, :].reshape(1, -1))
+            t0 = Q_k @ x_i * x_i
+            t1 = x_i.T @ Q_k @ x_i - abs(b_i[k, :]) ** 2
+
+    # TODO: finish
+    #         grad_k += 4 * (x_i.T @ Q_k @ x_i - abs(b_i[k, :]) ** 2) * Q_k @ x_i * x_i
+    #     grad_list.append(w_i * grad_k)
+    #
+    # return np.vstack(grad_list)
 
 
 class Antenna:
@@ -45,6 +85,7 @@ class Antenna:
         plotter(phi_range, self.beams, ['k', 'r'])
 
         self.objective = None
+        self.jac = None
         self.cons = None
 
         self.__M = None
@@ -53,17 +94,23 @@ class Antenna:
     def info(self):
         pass
 
+    def set_jacobian(self, weights):
+
+        def jacobian(J, info):
+            J = J.reshape(-1, 1)
+            list_J = np.split(np.exp(J), self.n_currents)
+            # f_value, gradf_value = fg(self.afs, list_J, self.beams, weights)
+            return g(self.afs, list_J, self.beams, weights)
+
+        self.jac = jacobian
+
     def set_objective(self, weights):
 
         def objective(J, info):
             J = J.reshape(-1, 1)
             list_J = np.split(np.exp(J), self.n_currents)
-            f_value, gradf_value = f(self.afs, list_J, self.beams, weights)
-
-            if not info['iter_number'] % 10:
-                print(f"{info['iter_number']:<15}| {f_value:<25} | {np.linalg.norm(gradf_value):<25} |")
-            info['iter_number'] += 1
-            return f_value, gradf_value
+            f_value = f(self.afs, list_J, self.beams, weights)
+            return f_value
 
         self.objective = objective
 
@@ -79,10 +126,7 @@ class Antenna:
         template = list(set(itertools.permutations(temp, len(temp))))
         self.__M = np.array(np.bmat([[np.eye(self.N) if elem else np.eye(self.N) * 0 for elem in template_i] for template_i in template]))
         self.__eps = eps
-
-        def alloc_linear(J):
-            return (- self.__M @ J.reshape(-1, 1) - eps).squeeze()
-        self.cons = {'type': 'ineq', 'fun': alloc_linear}
+        self.cons = LinearConstraint(self.__M, -np.inf, -eps)
 
     def get_optimal_current_allocation(self, params):
         """
@@ -96,17 +140,20 @@ class Antenna:
         if self.cons is None:
             raise ValueError("Constraints are not set!")
 
-        x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps)[0].reshape(-1, )
+        x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps, rcond=None)[0].reshape(-1, )
+        # x0 = np.ones((self.N * self.n_currents))
 
         # print("Initial norm of residual: {}".format(self.objective(x0)[0]))
-        print(f"{'Iter number':<15}| {'Function value':<25} | {'Gradient norm':<25}")
+        # print(f"{'Iter number':<15}| {'Function value':<25} | {'Gradient norm':<25}")
         print(f"{'========================================================================':<50}")
         result = minimize(fun=self.objective,
                           x0=x0,
+                          method='trust-constr',
+                          jac=self.jac, hess=BFGS(),
                           args=({'iter_number': 0},),
                           constraints=self.cons,
-                          **params["general"],
-                          options=params["options"])
+                          options={'verbose': 3}
+                          )
         # print("Optimisation problem solved. Resulting norm of residual: {}".format(self.objective(result.x)[0]))
 
         return np.split(result.x, self.n_currents)
