@@ -7,12 +7,12 @@
   },
   "optimisation_params": {
     "general": {
-      "jac": true,
-      "method": "trust-constr"
+      "method": "trust-constr",
+      "eps": 7,
     },
     "options": {
-      "disp": true,
-      "maxiter": 5000
+      "maxiter": 5000,
+      "verbose": 3
     }
   }
 }

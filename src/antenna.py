@@ -1,6 +1,6 @@
 import numpy as np
 import itertools
-from scipy.optimize import minimize, LinearConstraint, BFGS
+from scipy.optimize import minimize, LinearConstraint, BFGS, check_grad
 from utils import plotter
 
 
@@ -17,11 +17,13 @@ def fg(A, x, b, weight):
             grad_k += 4 * (x_i.T @ Q_k @ x_i - abs(b_i[k, :]) ** 2) * Q_k @ x_i * x_i
         grad_list.append(w_i * grad_k)
 
-    return result, np.vstack(grad_list)
+    return result, np.vstack(grad_list) + np.random.randn()
 
 
 def g(A, x, b, weight):
 
+    # TODO: double check
+    # not used at the moment
     grad_list = []
     for A_i, x_i, b_i, w_i in zip(A, x, b, weight):
 
@@ -31,7 +33,7 @@ def g(A, x, b, weight):
             grad_k += 4 * (x_i.T @ Q_k @ x_i - abs(b_i[k, :]) ** 2) * Q_k @ x_i * x_i
         grad_list.append(w_i * grad_k)
 
-    return np.vstack(grad_list)
+    return np.vstack(grad_list).reshape(-1, )
 
 
 def f(A, x, b, weight):
@@ -96,7 +98,7 @@ class Antenna:
 
     def set_jacobian(self, weights):
 
-        def jacobian(J, info):
+        def jacobian(J):
             J = J.reshape(-1, 1)
             list_J = np.split(np.exp(J), self.n_currents)
             # f_value, gradf_value = fg(self.afs, list_J, self.beams, weights)
@@ -106,7 +108,7 @@ class Antenna:
 
     def set_objective(self, weights):
 
-        def objective(J, info):
+        def objective(J):
             J = J.reshape(-1, 1)
             list_J = np.split(np.exp(J), self.n_currents)
             f_value = f(self.afs, list_J, self.beams, weights)
@@ -143,16 +145,19 @@ class Antenna:
         x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps, rcond=None)[0].reshape(-1, )
         # x0 = np.ones((self.N * self.n_currents))
 
+        # if check_grad(self.objective, self.jac, x0) > 1e-6:
+        #     raise Warning("Jacobian caclulation is not accurate")
+
         # print("Initial norm of residual: {}".format(self.objective(x0)[0]))
         # print(f"{'Iter number':<15}| {'Function value':<25} | {'Gradient norm':<25}")
         print(f"{'========================================================================':<50}")
         result = minimize(fun=self.objective,
                           x0=x0,
                           method='trust-constr',
-                          jac=self.jac, hess=BFGS(),
-                          args=({'iter_number': 0},),
+                          jac='3-point',
+                          hess=BFGS(),
                           constraints=self.cons,
-                          options={'verbose': 3}
+                          options=params["options"]
                           )
         # print("Optimisation problem solved. Resulting norm of residual: {}".format(self.objective(result.x)[0]))
 
