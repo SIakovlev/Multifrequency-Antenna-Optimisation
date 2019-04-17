@@ -21,7 +21,7 @@ def plotter(data_x, data_y, style_mod, figsize=(10, 5), plot_type='normal'):
             plt.plot(data_x, dataYElem, styleElem) if len(data_x) else plt.plot(dataYElem, styleElem)
     elif plot_type == 'stem':
         for dataYElem, styleElem in zip(data_y, style_mod):
-            plt.stem(data_x, dataYElem, styleElem) if len(data_x) else plt.stem(dataYElem, styleElem)
+            plt.stem(data_x, dataYElem, linefmt=styleElem) if len(data_x) else plt.stem(dataYElem, linefmt=styleElem)
     plt.grid(True)
     plt.show()
 

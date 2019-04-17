@@ -1,5 +1,7 @@
 import numpy as np
 import itertools
+import scipy
+import matplotlib.colors as colors
 from scipy.optimize import minimize, LinearConstraint, BFGS, check_grad
 from utils import plotter
 
@@ -22,7 +24,7 @@ def fg(A, x, b, weight):
 
 def g(A, x, b, weight):
 
-    # TODO: double check
+    # TODO: double check, the error between this and the numerical approximation is about 0.005...
     # not used at the moment
     grad_list = []
     for A_i, x_i, b_i, w_i in zip(A, x, b, weight):
@@ -55,12 +57,11 @@ def h(A, x, b, weight):
             Q_k = np.real(A_i[k, :].reshape(1, -1).conj().T @ A_i[k, :].reshape(1, -1))
             t0 = Q_k @ x_i * x_i
             t1 = x_i.T @ Q_k @ x_i - abs(b_i[k, :]) ** 2
+            hess_k += 8 * t0 @ ((x_i.T @ Q_k) * x_i.T)\
+                      + 4 * t1 * np.diag(x_i.squeeze()) @ Q_k @ np.diag(x_i.squeeze()) + 4 * t1 * np.diag(t0.squeeze())
+        hess_list.append(hess_k)
 
-    # TODO: finish
-    #         grad_k += 4 * (x_i.T @ Q_k @ x_i - abs(b_i[k, :]) ** 2) * Q_k @ x_i * x_i
-    #     grad_list.append(w_i * grad_k)
-    #
-    # return np.vstack(grad_list)
+    return scipy.linalg.block_diag(*hess_list)
 
 
 class Antenna:
@@ -71,11 +72,11 @@ class Antenna:
         self.lambdas = params["wavelengths"]
         self.beam_resolution = params["beam_resolution"]
 
-        phi_range = np.radians(np.arange(0, 180 + self.beam_resolution, self.beam_resolution))
+        self.phi_range = np.radians(np.arange(0, 180 + self.beam_resolution, self.beam_resolution))
 
         afs = []
         for i, lambda_i in enumerate(self.lambdas):
-            afs.append(self.array_factor(self.N, 2 * np.pi / lambda_i, self.d, phi_range))
+            afs.append(self.array_factor(self.N, 2 * np.pi / lambda_i, self.d, self.phi_range))
         self.afs = afs
         self.n_currents = len(afs)
 
@@ -84,11 +85,15 @@ class Antenna:
             beams.append(self.ref_beam(self.N, af_i))
         self.beams = beams
 
-        plotter(phi_range, self.beams, ['k', 'r'])
+        plotter(self.phi_range, self.beams, ['k', 'r', 'b'])
 
         self.objective = None
         self.jac = None
+        self.hess = None
         self.cons = None
+        self.callback = None
+
+        self.__I = None
 
         self.__M = None
         self.__eps = None
@@ -96,12 +101,34 @@ class Antenna:
     def info(self):
         pass
 
+    def plot_current_distribution(self):
+
+        colors_list = list(colors._colors_full_map.values())
+        plotter([],
+                [abs(I) for I in np.exp(self.__I)],
+                style_mod=[colors_list[i] for i in range(len(self.afs))],
+                plot_type='stem')
+
+    def plot_formed_beams(self):
+        colors_list = list(colors._colors_full_map.values())
+        plotter(self.phi_range,
+                [abs(af @ I) for af, I in zip(self.afs, np.exp(self.__I))],
+                style_mod=[colors_list[i] for i in range(len(self.afs))])
+
+    def set_hessian(self, weights):
+
+        def hessian(J):
+            J = J.reshape(-1, 1)
+            list_J = np.split(np.exp(J), self.n_currents)
+            return h(self.afs, list_J, self.beams, weights)
+
+        self.hess = hessian
+
     def set_jacobian(self, weights):
 
         def jacobian(J):
             J = J.reshape(-1, 1)
             list_J = np.split(np.exp(J), self.n_currents)
-            # f_value, gradf_value = fg(self.afs, list_J, self.beams, weights)
             return g(self.afs, list_J, self.beams, weights)
 
         self.jac = jacobian
@@ -111,10 +138,16 @@ class Antenna:
         def objective(J):
             J = J.reshape(-1, 1)
             list_J = np.split(np.exp(J), self.n_currents)
-            f_value = f(self.afs, list_J, self.beams, weights)
-            return f_value
+            return f(self.afs, list_J, self.beams, weights)
 
         self.objective = objective
+
+    def set_callback(self):
+
+        def callback(J, info):
+            print(f"Gradient check: {check_grad(self.objective, self.jac, J)}")
+
+        self.callback = callback
 
     def set_constraints(self, eps):
 
@@ -150,17 +183,23 @@ class Antenna:
 
         # print("Initial norm of residual: {}".format(self.objective(x0)[0]))
         # print(f"{'Iter number':<15}| {'Function value':<25} | {'Gradient norm':<25}")
-        print(f"{'========================================================================':<50}")
+        # print(f"{'========================================================================':<50}")
         result = minimize(fun=self.objective,
                           x0=x0,
                           method='trust-constr',
-                          jac='3-point',
-                          hess=BFGS(),
+                          jac=self.jac,
+                          hess=self.hess,
                           constraints=self.cons,
+                          callback=self.callback,
                           options=params["options"]
                           )
+        print()
+        print(result.v)
+        print()
+        print(self.__M @ result.x.reshape(-1, 1))
         # print("Optimisation problem solved. Resulting norm of residual: {}".format(self.objective(result.x)[0]))
 
+        self.__I = np.split(result.x, self.n_currents)
         return np.split(result.x, self.n_currents)
 
     @staticmethod

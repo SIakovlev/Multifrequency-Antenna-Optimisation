@@ -8,10 +8,10 @@
   "optimisation_params": {
     "general": {
       "method": "trust-constr",
-      "eps": 7,
+      "eps": 7
     },
     "options": {
-      "maxiter": 5000,
+      "maxiter": 2000,
       "verbose": 3
     }
   }
