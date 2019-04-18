@@ -11,12 +11,15 @@ def main(**kwargs):
     antenna.set_jacobian(weights=[1.0, 1.0, 1.0])
     antenna.set_hessian(weights=[1.0, 1.0, 1.0])
     # antenna.set_callback()
-    antenna.set_constraints(eps=7)
+    antenna.set_constraints(eps=5)
 
     antenna.get_optimal_current_allocation(kwargs["optimisation_params"])
 
     antenna.plot_current_distribution()
     antenna.plot_formed_beams()
+
+    # Run a solver and at each step check if the constraint is ....
+
 
 
 if __name__ == "__main__":

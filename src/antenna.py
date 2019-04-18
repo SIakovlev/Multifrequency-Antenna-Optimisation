@@ -94,11 +94,14 @@ class Antenna:
         :return:
         """
 
-        temp = np.array([True if i in [0, 1] else False for i in range(self.n_currents)])
-        template = list(set(itertools.permutations(temp, len(temp))))
-        self.__M = np.array(np.bmat([[np.eye(self.N) if elem else np.eye(self.N) * 0 for elem in template_i] for template_i in template]))
-        self.__eps = eps
-        self.cons = LinearConstraint(self.__M, -np.inf, -eps)
+        if eps is None:
+            self.cons = None
+        else:
+            temp = np.array([True if i in [0, 1] else False for i in range(self.n_currents)])
+            template = list(set(itertools.permutations(temp, len(temp))))
+            self.__M = np.array(np.bmat([[np.eye(self.N) if elem else np.eye(self.N) * 0 for elem in template_i] for template_i in template]))
+            self.__eps = eps
+            self.cons = LinearConstraint(self.__M, -np.inf, -eps)
 
     def get_optimal_current_allocation(self, params):
         """
@@ -112,8 +115,8 @@ class Antenna:
         if self.cons is None:
             raise ValueError("Constraints are not set!")
 
-        x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps, rcond=None)[0].reshape(-1, )
-        # x0 = np.ones((self.N * self.n_currents))
+        #x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps, rcond=None)[0].reshape(-1, )
+        x0 = np.ones((self.N * self.n_currents))
 
         # if check_grad(self.objective, self.jac, x0) > 1e-6:
         #     raise Warning("Jacobian caclulation is not accurate")
@@ -137,7 +140,7 @@ class Antenna:
         # print("Optimisation problem solved. Resulting norm of residual: {}".format(self.objective(result.x)[0]))
 
         self.__I = np.split(result.x, self.n_currents)
-        return np.split(result.x, self.n_currents)
+        return np.split(result.x, self.n_currents), result.fun
 
     @staticmethod
     def array_factor(N, k, d, phi):
