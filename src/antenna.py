@@ -3,7 +3,7 @@ import itertools
 import scipy
 import matplotlib.colors as colors
 from scipy.optimize import minimize, LinearConstraint, BFGS, check_grad
-from utils import plotter
+from utils import plotter, linear_phase_shift_matrix
 from objective_function import f, g, h
 
 
@@ -25,10 +25,10 @@ class Antenna:
 
         beams = []
         for i, af_i in enumerate(self.afs):
-            beams.append(self.ref_beam(self.N, af_i))
+            beams.append(self.hamming_ref_beam(self.N, af_i))
         self.beams = beams
 
-        plotter(self.phi_range, self.beams, ['k', 'r', 'b'])
+        self.plot_ref_beams()
 
         self.objective = None
         self.jac = None
@@ -51,6 +51,13 @@ class Antenna:
                 [abs(I) for I in np.exp(self.__I)],
                 style_mod=[colors_list[i] for i in range(len(self.afs))],
                 plot_type='stem')
+
+    def plot_ref_beams(self):
+
+        colors_list = list(colors._colors_full_map.values())
+        plotter(self.phi_range,
+                [abs(beam) for beam in self.beams],
+                style_mod=[colors_list[i] for i in range(len(self.afs))])
 
     def plot_formed_beams(self):
         colors_list = list(colors._colors_full_map.values())
@@ -103,6 +110,11 @@ class Antenna:
             self.__eps = eps
             self.cons = LinearConstraint(self.__M, -np.inf, -eps)
 
+    def set_phase_shift(self, val_list):
+        for i, val in enumerate(val_list):
+            self.afs[i] = self.afs[i] @ linear_phase_shift_matrix(self.N, val)
+            self.beams[i] = self.hamming_ref_beam(self.N, self.afs[i])
+
     def get_optimal_current_allocation(self, params):
         """
 
@@ -115,8 +127,8 @@ class Antenna:
         if self.cons is None:
             raise ValueError("Constraints are not set!")
 
-        #x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps, rcond=None)[0].reshape(-1, )
-        x0 = np.ones((self.N * self.n_currents))
+        x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps, rcond=None)[0].reshape(-1, )
+        # x0 = np.ones((self.N * self.n_currents))
 
         # if check_grad(self.objective, self.jac, x0) > 1e-6:
         #     raise Warning("Jacobian caclulation is not accurate")
@@ -164,12 +176,11 @@ class Antenna:
         return A.astype(dtype=np.complex128)
 
     @staticmethod
-    def ref_beam(N, A, beam_type='hamming'):
+    def hamming_ref_beam(N, A):
 
-        if beam_type == 'hamming':
-            weights = np.hamming(N)
-            weights = weights / np.linalg.norm(weights, 2)
-            return abs(A @ weights).reshape(-1, 1)
+        weights = np.hamming(N)
+        weights = weights / np.linalg.norm(weights, 2)
+        return A @ weights.reshape(-1, 1)
 
 
 

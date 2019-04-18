@@ -39,24 +39,18 @@ def v_real2complex(x):
     return np.split(x, 2)
 
 
-def phase_shift(x, delta, shift_type='linear'):
+def linear_phase_shift_matrix(N, delta):
     """
-    Add phase shift to the elements of vector x
-    :param x:
+    Return phase shift matrix for N element array
     :param delta:
-    :param shift_type:
     :return: phase shifted vector x
     """
-    num_elements = x.shape[0]
-    x_shifted = np.array(x, dtype=np.complex_)
-    if shift_type == 'linear':
-        Delta = 0
-        for i in range(num_elements):
-            x_shifted[i] = x[i] * np.exp(1j * Delta)
-            Delta += delta
-        return x_shifted
-    else:
-        print("Please specify phaseType value \n")
+    shift_matrix = np.zeros(shape=(N, N), dtype=np.complex128)
+    Delta = 0
+    for i in range(N):
+        shift_matrix[i, i] = np.exp(1j * Delta)
+        Delta += delta
+    return shift_matrix
 
 
 def coord_descent(A, x, b, idx_list):

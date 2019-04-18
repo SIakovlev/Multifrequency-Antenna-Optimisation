@@ -7,11 +7,10 @@
   },
   "optimisation_params": {
     "general": {
-      "method": "trust-constr",
-      "eps": 7
+      "method": "trust-constr"
     },
     "options": {
-      "maxiter": 1000,
+      "maxiter": 500,
       "verbose": 3
     }
   }
