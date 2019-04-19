@@ -115,6 +115,13 @@ class Antenna:
             self.afs[i] = self.afs[i] @ linear_phase_shift_matrix(self.N, val)
             self.beams[i] = self.hamming_ref_beam(self.N, self.afs[i])
 
+    def set_mutual_coupling(self, alpha_list):
+        for i, alpha in enumerate(alpha_list):
+            temp = [alpha ** i for i in range(0, self.N)]
+            self.afs[i] = self.afs[i] @ scipy.linalg.toeplitz(temp)
+            # self.beams[i] = self.hamming_ref_beam(self.N, self.afs[i])
+
+
     def get_optimal_current_allocation(self, params):
         """
 
