@@ -7,7 +7,7 @@ import matplotlib as mpl
 mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize, LinearConstraint, BFGS, check_grad
-from utils import plotter, linear_phase_shift_matrix
+from utils import linear_phase_shift_matrix
 from objective_function import f, g, h
 
 
