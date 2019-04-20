@@ -1,29 +1,4 @@
 import numpy as np
-import matplotlib as mpl
-mpl.use('TkAgg')
-import matplotlib.pyplot as plt
-
-
-def plotter(data_x, data_y, style_mod, figsize=(10, 5), plot_type='normal'):
-    """
-    High level customised API for plotting.
-    :param data_x:
-    :param data_y:
-    :param style_mod:
-    :param figsize:
-    :param plot_type:
-    :return:
-    """
-
-    plt.figure(figsize=(10, 5))
-    if plot_type == 'normal':
-        for dataYElem, styleElem in zip(data_y, style_mod):
-            plt.plot(data_x, dataYElem, styleElem) if len(data_x) else plt.plot(dataYElem, styleElem)
-    elif plot_type == 'stem':
-        for dataYElem, styleElem in zip(data_y, style_mod):
-            plt.stem(data_x, dataYElem, linefmt=styleElem) if len(data_x) else plt.stem(dataYElem, linefmt=styleElem)
-    plt.grid(True)
-    plt.show()
 
 
 def linear_phase_shift_matrix(N, delta):
