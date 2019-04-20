@@ -1,7 +1,11 @@
 import numpy as np
 import itertools
 import scipy
+import matplotlib2tikz
 import matplotlib.colors as colors
+import matplotlib as mpl
+mpl.use('TkAgg')
+import matplotlib.pyplot as plt
 from scipy.optimize import minimize, LinearConstraint, BFGS, check_grad
 from utils import plotter, linear_phase_shift_matrix
 from objective_function import f, g, h
@@ -44,26 +48,56 @@ class Antenna:
     def info(self):
         pass
 
-    def plot_current_distribution(self):
+    def plot_current_distribution(self, figsize=(10, 5), save=False):
 
-        colors_list = list(colors._colors_full_map.values())
-        plotter([],
-                [abs(I) for I in np.exp(self.__I)],
-                style_mod=[colors_list[i] for i in range(len(self.afs))],
-                plot_type='stem')
+        signals = [abs(I) for I in np.exp(self.__I)]
+        plot_names = [r'Current amplitude ($\lambda_{}$ = {}d)'.format(i, l) for i, l in enumerate(self.lambdas)]
 
-    def plot_ref_beams(self):
+        plt.figure(figsize=figsize)
+        plt.ylabel(r"Current amplitude")
+        plt.xlabel(r"Antenna element number")
+        for i, (signal, label) in enumerate(zip(signals, plot_names)):
+            plt.stem(signal, linefmt=f"C{i}", markerfmt=f"C{i}o", basefmt=f"C{i}", label=label)
+        plt.grid(True)
+        plt.legend()
+        if save:
+            matplotlib2tikz.save('../results/current_distribution.tex')
+        else:
+            plt.show()
 
-        colors_list = list(colors._colors_full_map.values())
-        plotter(self.phi_range,
-                [abs(beam) for beam in self.beams],
-                style_mod=[colors_list[i] for i in range(len(self.afs))])
+    def plot_ref_beams(self, figsize=(10, 5), save=False):
 
-    def plot_formed_beams(self):
-        colors_list = list(colors._colors_full_map.values())
-        plotter(self.phi_range,
-                [abs(af @ I) for af, I in zip(self.afs, np.exp(self.__I))],
-                style_mod=[colors_list[i] for i in range(len(self.afs))])
+        signals = [abs(beam) for beam in self.beams]
+        plot_names = [r'Beam ($\lambda_{}$ = {}d)'.format(i, l) for i, l in enumerate(self.lambdas)]
+
+        plt.figure(figsize=figsize)
+        plt.ylabel(r"Beam amplitude")
+        plt.xlabel(r"Angle (rad)")
+        for i, (signal, label) in enumerate(zip(signals, plot_names)):
+            plt.plot(self.phi_range, signal, color=f"C{i}", label=label)
+        plt.grid(True)
+        plt.legend()
+        if save:
+            matplotlib2tikz.save('../results/ref_beams.tex')
+        else:
+            plt.show()
+
+    def plot_formed_beams(self, figsize=(10, 5), save=False):
+
+        signals = [abs(af @ I) for af, I in zip(self.afs, np.exp(self.__I))]
+        plot_names = [r'Beam ($\lambda_{}$ = {}d)'.format(i, l) for i, l in enumerate(self.lambdas)]
+
+        plt.figure(figsize=figsize)
+        plt.ylabel(r"Beam amplitude")
+        plt.xlabel(r"Angle (rad)")
+        for i, (signal, label) in enumerate(zip(signals, plot_names)):
+            plt.plot(self.phi_range, signal, color=f"C{i}", label=label)
+        plt.grid(True)
+        plt.legend()
+        if save:
+            matplotlib2tikz.save('../results/formed_beams.tex')
+        else:
+            plt.show()
 
     def set_hessian(self, weights):
         def hessian(J):
@@ -137,12 +171,6 @@ class Antenna:
         x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps, rcond=None)[0].reshape(-1, )
         # x0 = np.ones((self.N * self.n_currents))
 
-        # if check_grad(self.objective, self.jac, x0) > 1e-6:
-        #     raise Warning("Jacobian caclulation is not accurate")
-
-        # print("Initial norm of residual: {}".format(self.objective(x0)[0]))
-        # print(f"{'Iter number':<15}| {'Function value':<25} | {'Gradient norm':<25}")
-        # print(f"{'========================================================================':<50}")
         result = minimize(fun=self.objective,
                           x0=x0,
                           method='trust-constr',

@@ -26,19 +26,6 @@ def plotter(data_x, data_y, style_mod, figsize=(10, 5), plot_type='normal'):
     plt.show()
 
 
-def m_complex2real(A):
-    return np.vstack(
-        (np.concatenate((np.real(A), -np.imag(A)), axis=1), np.concatenate((np.imag(A), np.real(A)), axis=1)))
-
-
-def v_complex2real(x):
-    return np.hstack((np.real(x), np.imag(x)))
-
-
-def v_real2complex(x):
-    return np.split(x, 2)
-
-
 def linear_phase_shift_matrix(N, delta):
     """
     Return phase shift matrix for N element array

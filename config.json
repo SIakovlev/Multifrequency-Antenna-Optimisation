@@ -2,7 +2,7 @@
   "antenna_params" : {
     "number_of_antenna_elements" : 100,
     "distance_between_elements" : 0.5,
-    "wavelengths" : [4, 4.5],
+    "wavelengths" : [2, 4],
     "beam_resolution" : 1
   },
   "optimisation_params": {
