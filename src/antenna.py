@@ -1,12 +1,11 @@
 import numpy as np
 import itertools
 import scipy
-import matplotlib2tikz
-import matplotlib.colors as colors
 import matplotlib as mpl
 mpl.use('TkAgg')
 import matplotlib.pyplot as plt
-from scipy.optimize import minimize, LinearConstraint, BFGS, check_grad
+import matplotlib2tikz
+from scipy.optimize import minimize, LinearConstraint, Bounds, check_grad
 from utils import linear_phase_shift_matrix
 from objective_function import f, g, h
 
@@ -37,7 +36,8 @@ class Antenna:
         self.objective = None
         self.jac = None
         self.hess = None
-        self.cons = None
+        self.cons = []
+        self.bounds = None
         self.callback = None
 
         self.__I = None
@@ -99,35 +99,33 @@ class Antenna:
         else:
             plt.show()
 
-    def set_hessian(self, weights):
+    def set_hessian(self, weights, offset=0):
         def hessian(J):
             J = J.reshape(-1, 1)
             list_J = np.split(np.exp(J), self.n_currents)
-            return h(self.afs, list_J, self.beams, weights)
+            return h(self.afs, list_J, self.beams, weights, offset=offset)
         self.hess = hessian
 
-    def set_jacobian(self, weights):
+    def set_jacobian(self, weights, offset=0):
         def jacobian(J):
             J = J.reshape(-1, 1)
             list_J = np.split(np.exp(J), self.n_currents)
-            return g(self.afs, list_J, self.beams, weights)
+            return g(self.afs, list_J, self.beams, weights, offset=offset)
         self.jac = jacobian
 
-    def set_objective(self, weights):
+    def set_objective(self, weights, offset=0):
         def objective(J):
             J = J.reshape(-1, 1)
             list_J = np.split(np.exp(J), self.n_currents)
-            return f(self.afs, list_J, self.beams, weights)
+            return f(self.afs, list_J, self.beams, weights, offset=offset)
         self.objective = objective
 
     def set_callback(self):
-
         def callback(J, info):
             print(f"Gradient check: {check_grad(self.objective, self.jac, J)}")
-
         self.callback = callback
 
-    def set_constraints(self, eps):
+    def set_allocation_constraint(self, eps):
 
         """
         Constraint of the form Mx <= -eps (or -Mx - eps >= 0)
@@ -136,13 +134,29 @@ class Antenna:
         """
 
         if eps is None:
-            self.cons = None
+            self.cons = []
         else:
             temp = np.array([True if i in [0, 1] else False for i in range(self.n_currents)])
             template = list(set(itertools.permutations(temp, len(temp))))
-            self.__M = np.array(np.bmat([[np.eye(self.N) if elem else np.eye(self.N) * 0 for elem in template_i] for template_i in template]))
+            self.__M = np.array(np.bmat([[np.eye(self.N) if elem else np.eye(self.N) * 0 for elem in template_i]
+                                         for template_i in template]))
             self.__eps = eps
-            self.cons = LinearConstraint(self.__M, -np.inf, -eps)
+            self.cons.append(LinearConstraint(self.__M, -np.inf, -eps))
+            # self.cons.append(LinearConstraint(self.__M, -eps, -eps))
+
+    def set_power_constraint(self, delta):
+
+        """
+        Constraint of the form Ix <= delta (or delta - Ix >= 0)
+        :param eps: design parameter large enough to make currents small
+        :return:
+        """
+
+        if delta is None:
+            self.cons = None
+        else:
+            self.bounds = Bounds(-np.inf * np.ones(self.N * self.n_currents),
+                                 np.log(delta) * np.ones(self.N * self.n_currents))
 
     def set_phase_shift(self, val_list):
         for i, val in enumerate(val_list):
@@ -153,10 +167,8 @@ class Antenna:
         for i, alpha in enumerate(alpha_list):
             temp = [alpha ** i for i in range(0, self.N)]
             self.afs[i] = self.afs[i] @ scipy.linalg.toeplitz(temp)
-            # self.beams[i] = self.hamming_ref_beam(self.N, self.afs[i])
 
-
-    def get_optimal_current_allocation(self, params):
+    def get_optimal_current_allocation(self, params, x0=None):
         """
 
         The main routine where optimal current distribution is calculated for multiple currents at different frequencies
@@ -165,11 +177,11 @@ class Antenna:
         if self.objective is None:
             raise ValueError("Objective function is not set!")
 
-        if self.cons is None:
+        if not self.cons:
             raise ValueError("Constraints are not set!")
 
-        x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps, rcond=None)[0].reshape(-1, )
-        # x0 = np.ones((self.N * self.n_currents))
+        if x0 is None:
+            x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps, rcond=None)[0].reshape(-1, )
 
         result = minimize(fun=self.objective,
                           x0=x0,
@@ -178,7 +190,8 @@ class Antenna:
                           hess=self.hess,
                           constraints=self.cons,
                           callback=self.callback,
-                          options=params["options"]
+                          options=params["options"],
+                          bounds=self.bounds
                           )
         print()
         print(result.v)
@@ -187,7 +200,7 @@ class Antenna:
         # print("Optimisation problem solved. Resulting norm of residual: {}".format(self.objective(result.x)[0]))
 
         self.__I = np.split(result.x, self.n_currents)
-        return np.split(result.x, self.n_currents), result.fun
+        return np.split(result.x, self.n_currents), result.fun, result.x
 
     @staticmethod
     def array_factor(N, k, d, phi):
