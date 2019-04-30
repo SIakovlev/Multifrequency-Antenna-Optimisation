@@ -39,6 +39,7 @@ class Antenna:
         self.cons = []
         self.bounds = None
         self.callback = None
+        self.configuration = None
 
         self.__I = None
 
@@ -102,21 +103,21 @@ class Antenna:
     def set_hessian(self, weights, offset=0):
         def hessian(J):
             J = J.reshape(-1, 1)
-            list_J = np.split(np.exp(J), self.n_currents)
+            list_J = self.set_currents(np.split(np.exp(J), self.n_currents), self.configuration)
             return h(self.afs, list_J, self.beams, weights, offset=offset)
         self.hess = hessian
 
     def set_jacobian(self, weights, offset=0):
         def jacobian(J):
             J = J.reshape(-1, 1)
-            list_J = np.split(np.exp(J), self.n_currents)
+            list_J = self.set_currents(np.split(np.exp(J), self.n_currents), self.configuration)
             return g(self.afs, list_J, self.beams, weights, offset=offset)
         self.jac = jacobian
 
     def set_objective(self, weights, offset=0):
         def objective(J):
             J = J.reshape(-1, 1)
-            list_J = np.split(np.exp(J), self.n_currents)
+            list_J = self.set_currents(np.split(np.exp(J), self.n_currents), self.configuration)
             return f(self.afs, list_J, self.beams, weights, offset=offset)
         self.objective = objective
 
@@ -124,6 +125,9 @@ class Antenna:
         def callback(J, info):
             print(f"Gradient check: {check_grad(self.objective, self.jac, J)}")
         self.callback = callback
+
+    def set_configuration(self, configuration):
+        self.configuration = configuration
 
     def set_allocation_constraint(self, eps):
 
@@ -142,7 +146,6 @@ class Antenna:
                                          for template_i in template]))
             self.__eps = eps
             self.cons.append(LinearConstraint(self.__M, -np.inf, -eps))
-            # self.cons.append(LinearConstraint(self.__M, -eps, -eps))
 
     def set_power_constraint(self, delta):
 
@@ -229,6 +232,18 @@ class Antenna:
         weights = np.hamming(N)
         weights = weights / np.linalg.norm(weights, 2)
         return A @ weights.reshape(-1, 1)
+
+    @staticmethod
+    def set_currents(listJ, conf):
+        if conf is None:
+            return listJ
+        J_mtx = np.array(listJ)
+        temp = np.zeros_like(J_mtx)
+        for i, elem in enumerate(conf):
+            temp[elem, i] = True
+        J_mtx = J_mtx * temp
+        J_mtx[J_mtx == 0] = -1000
+        return J_mtx
 
 
 
