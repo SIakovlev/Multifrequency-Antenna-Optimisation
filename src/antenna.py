@@ -41,7 +41,7 @@ class Antenna:
         self.callback = None
         self.configuration = None
 
-        self.__I = None
+        self.I = np.zeros(shape=(self.n_currents, self.N))
 
         self.__M = None
         self.__eps = None
@@ -51,7 +51,7 @@ class Antenna:
 
     def plot_current_distribution(self, figsize=(10, 5), save=False):
 
-        signals = [abs(I) for I in np.exp(self.__I)]
+        signals = [abs(I) for I in np.exp(self.I)]
         plot_names = [r'Current amplitude ($\lambda_{}$ = {}d)'.format(i, l) for i, l in enumerate(self.lambdas)]
 
         plt.figure(figsize=figsize)
@@ -85,7 +85,7 @@ class Antenna:
 
     def plot_formed_beams(self, figsize=(10, 5), save=False):
 
-        signals = [abs(af @ I) for af, I in zip(self.afs, np.exp(self.__I))]
+        signals = [abs(af @ I) for af, I in zip(self.afs, np.exp(self.I))]
         plot_names = [r'Beam ($\lambda_{}$ = {}d)'.format(i, l) for i, l in enumerate(self.lambdas)]
 
         plt.figure(figsize=figsize)
@@ -102,22 +102,19 @@ class Antenna:
 
     def set_hessian(self, weights, offset=0):
         def hessian(J):
-            J = J.reshape(-1, 1)
-            list_J = self.set_currents(np.split(np.exp(J), self.n_currents), self.configuration)
+            list_J = self.set_currents(J)
             return h(self.afs, list_J, self.beams, weights, offset=offset)
         self.hess = hessian
 
     def set_jacobian(self, weights, offset=0):
         def jacobian(J):
-            J = J.reshape(-1, 1)
-            list_J = self.set_currents(np.split(np.exp(J), self.n_currents), self.configuration)
+            list_J = self.set_currents(J)
             return g(self.afs, list_J, self.beams, weights, offset=offset)
         self.jac = jacobian
 
     def set_objective(self, weights, offset=0):
         def objective(J):
-            J = J.reshape(-1, 1)
-            list_J = self.set_currents(np.split(np.exp(J), self.n_currents), self.configuration)
+            list_J = self.set_currents(J)
             return f(self.afs, list_J, self.beams, weights, offset=offset)
         self.objective = objective
 
@@ -128,6 +125,17 @@ class Antenna:
 
     def set_configuration(self, configuration):
         self.configuration = configuration
+
+    def set_currents(self, J):
+        if self.configuration is None:
+            J = J.reshape(-1, 1)
+            return np.split(np.exp(J.reshape(-1, 1)), self.n_currents)
+        # create a mask
+        temp = np.zeros_like(self.I)
+        for i, elem in enumerate(self.configuration):
+            temp[elem, i] = np.exp(J[i])
+        temp[temp == 0] = 0
+        return np.split(temp.flatten().reshape(-1, 1), self.n_currents)
 
     def set_allocation_constraint(self, eps):
 
@@ -180,8 +188,8 @@ class Antenna:
         if self.objective is None:
             raise ValueError("Objective function is not set!")
 
-        if not self.cons:
-            raise ValueError("Constraints are not set!")
+        # if not self.cons:
+        #     raise ValueError("Constraints are not set!")
 
         if x0 is None:
             x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps, rcond=None)[0].reshape(-1, )
@@ -202,7 +210,7 @@ class Antenna:
         print(self.__M @ result.x.reshape(-1, 1))
         # print("Optimisation problem solved. Resulting norm of residual: {}".format(self.objective(result.x)[0]))
 
-        self.__I = np.split(result.x, self.n_currents)
+        self.I = np.split(result.x, self.n_currents)
         return np.split(result.x, self.n_currents), result.fun, result.x
 
     @staticmethod
@@ -233,17 +241,7 @@ class Antenna:
         weights = weights / np.linalg.norm(weights, 2)
         return A @ weights.reshape(-1, 1)
 
-    @staticmethod
-    def set_currents(listJ, conf):
-        if conf is None:
-            return listJ
-        J_mtx = np.array(listJ)
-        temp = np.zeros_like(J_mtx)
-        for i, elem in enumerate(conf):
-            temp[elem, i] = True
-        J_mtx = J_mtx * temp
-        J_mtx[J_mtx == 0] = -1000
-        return J_mtx
+
 
 
 
