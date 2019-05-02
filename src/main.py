@@ -1,17 +1,21 @@
 import json
 from antenna import Antenna
-
+import numpy as np
 
 def main(**kwargs):
 
     antenna_params = kwargs["antenna_params"]
 
     antenna = Antenna(antenna_params)
-    # antenna.set_phase_shift([0.1, -0.3])
-    # antenna.plot_ref_beams()
+    antenna.set_configuration((1, 1))
     antenna.set_objective(weights=[1.0, 1.0])
     antenna.set_jacobian(weights=[1.0, 1.0])
     antenna.set_hessian(weights=[1.0, 1.0])
+
+    q = np.array([-4.65348429, -4.65348429, -0.34661317, -0.34661317])
+    q = np.array([-0.34661317, -0.34661317])
+    print(antenna.objective(q))
+
 
     antenna.set_allocation_constraint(eps=7)
     antenna.set_power_constraint(delta=0.5)
