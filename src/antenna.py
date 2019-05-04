@@ -5,7 +5,7 @@ import matplotlib as mpl
 mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib2tikz
-from scipy.optimize import minimize, LinearConstraint, Bounds, check_grad
+from scipy.optimize import minimize, LinearConstraint, Bounds, check_grad, BFGS
 from utils import linear_phase_shift_matrix
 from objective_function import f, g, h
 
@@ -13,8 +13,8 @@ from objective_function import f, g, h
 class Antenna:
     def __init__(self, params):
 
-        self.N = params["number_of_antenna_elements"]
-        self.d = params["distance_between_elements"]
+        self.N = params["N"]
+        self.d = params["d"]
         self.lambdas = params["wavelengths"]
         self.beam_resolution = params["beam_resolution"]
 
@@ -31,7 +31,7 @@ class Antenna:
             beams.append(self.hamming_ref_beam(self.N, af_i))
         self.beams = beams
 
-        self.plot_ref_beams()
+        # self.plot_ref_beams()
 
         self.objective = None
         self.jac = None
@@ -134,7 +134,7 @@ class Antenna:
         temp = np.zeros_like(self.I)
         for i, elem in enumerate(self.configuration):
             temp[elem, i] = np.exp(J[i])
-        temp[temp == 0] = 0
+            temp[np.arange(len(temp[:, 0])) != elem, i] = 0.0
         return np.split(temp.flatten().reshape(-1, 1), self.n_currents)
 
     def set_allocation_constraint(self, eps):
@@ -179,7 +179,7 @@ class Antenna:
             temp = [alpha ** i for i in range(0, self.N)]
             self.afs[i] = self.afs[i] @ scipy.linalg.toeplitz(temp)
 
-    def get_optimal_current_allocation(self, params, x0=None):
+    def get_optimal_current_allocation(self, params, x0=None, jac=True, hess=True, cons=True):
         """
 
         The main routine where optimal current distribution is calculated for multiple currents at different frequencies
@@ -188,30 +188,32 @@ class Antenna:
         if self.objective is None:
             raise ValueError("Objective function is not set!")
 
-        # if not self.cons:
-        #     raise ValueError("Constraints are not set!")
+        if cons:
+            if not self.cons:
+                raise ValueError("Constraints are not set!")
 
-        if x0 is None:
-            x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps, rcond=None)[0].reshape(-1, )
+            if x0 is None:
+                x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps, rcond=None)[0].reshape(-1, )
 
         result = minimize(fun=self.objective,
                           x0=x0,
                           method='trust-constr',
-                          jac=self.jac,
-                          hess=self.hess,
+                          jac=self.jac if jac else '3-point',
+                          hess=self.hess if hess else BFGS(),
                           constraints=self.cons,
                           callback=self.callback,
                           options=params["options"],
                           bounds=self.bounds
                           )
-        print()
-        print(result.v)
-        print()
-        print(self.__M @ result.x.reshape(-1, 1))
-        # print("Optimisation problem solved. Resulting norm of residual: {}".format(self.objective(result.x)[0]))
 
-        self.I = np.split(result.x, self.n_currents)
-        return np.split(result.x, self.n_currents), result.fun, result.x
+        # print()
+        # print(result.v)
+        # print()
+        if cons:
+            print(self.__M @ result.x.reshape(-1, 1))
+
+        self.I = self.set_currents(result.x)
+        return result.fun, result.x
 
     @staticmethod
     def array_factor(N, k, d, phi):
