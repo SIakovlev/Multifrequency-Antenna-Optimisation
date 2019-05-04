@@ -103,13 +103,13 @@ class Antenna:
     def set_hessian(self, weights, offset=0):
         def hessian(J):
             list_J = self.set_currents(J)
-            return h(self.afs, list_J, self.beams, weights, offset=offset)
+            return h(self.afs, list_J, self.beams, weights, offset=offset, mask=self.get_current_mask())
         self.hess = hessian
 
     def set_jacobian(self, weights, offset=0):
         def jacobian(J):
             list_J = self.set_currents(J)
-            return g(self.afs, list_J, self.beams, weights, offset=offset)
+            return g(self.afs, list_J, self.beams, weights, offset=offset, mask=self.get_current_mask())
         self.jac = jacobian
 
     def set_objective(self, weights, offset=0):
@@ -131,11 +131,18 @@ class Antenna:
             J = J.reshape(-1, 1)
             return np.split(np.exp(J.reshape(-1, 1)), self.n_currents)
         # create a mask
-        temp = np.zeros_like(self.I)
+        currents = np.zeros_like(self.I)
         for i, elem in enumerate(self.configuration):
-            temp[elem, i] = np.exp(J[i])
-            temp[np.arange(len(temp[:, 0])) != elem, i] = 0.0
-        return np.split(temp.flatten().reshape(-1, 1), self.n_currents)
+            currents[elem, i] = np.exp(J[i])
+        return np.split(currents.flatten().reshape(-1, 1), self.n_currents)
+
+    def get_current_mask(self):
+        if self.configuration is None:
+            return None
+        mask = np.zeros_like(self.I, dtype=bool)
+        for i, elem in enumerate(self.configuration):
+            mask[elem, i] = True
+        return mask
 
     def set_allocation_constraint(self, eps):
 
@@ -212,7 +219,7 @@ class Antenna:
         if cons:
             print(self.__M @ result.x.reshape(-1, 1))
 
-        self.I = self.set_currents(result.x)
+        # self.I = self.set_currents(result.x)
         return result.fun, result.x
 
     @staticmethod
