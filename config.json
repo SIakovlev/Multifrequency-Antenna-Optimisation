@@ -1,7 +1,7 @@
 {
   "antenna_params" : {
-    "number_of_antenna_elements" : 2,
-    "distance_between_elements" : 0.5,
+    "N" : 10,
+    "d" : 0.5,
     "wavelengths" : [1, 2],
     "beam_resolution" : 1
   },
@@ -10,7 +10,7 @@
       "method": "trust-constr"
     },
     "options": {
-      "maxiter": 500,
+      "maxiter": 1000,
       "verbose": 3
     }
   }
