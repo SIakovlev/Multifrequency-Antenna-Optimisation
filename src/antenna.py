@@ -51,7 +51,7 @@ class Antenna:
 
     def plot_current_distribution(self, figsize=(10, 5), save=False):
 
-        signals = [abs(I) for I in np.exp(self.I)]
+        signals = [abs(I) for I in self.I]
         plot_names = [r'Current amplitude ($\lambda_{}$ = {}d)'.format(i, l) for i, l in enumerate(self.lambdas)]
 
         plt.figure(figsize=figsize)
@@ -85,7 +85,7 @@ class Antenna:
 
     def plot_formed_beams(self, figsize=(10, 5), save=False):
 
-        signals = [abs(af @ I) for af, I in zip(self.afs, np.exp(self.I))]
+        signals = [abs(af @ I) for af, I in zip(self.afs, self.I)]
         plot_names = [r'Beam ($\lambda_{}$ = {}d)'.format(i, l) for i, l in enumerate(self.lambdas)]
 
         plt.figure(figsize=figsize)
@@ -216,10 +216,10 @@ class Antenna:
         # print()
         # print(result.v)
         # print()
-        if cons:
-            print(self.__M @ result.x.reshape(-1, 1))
+        # if cons:
+        #     print(self.__M @ result.x.reshape(-1, 1))
 
-        # self.I = self.set_currents(result.x)
+        self.I = self.set_currents(result.x)
         return result.fun, result.x
 
     @staticmethod
