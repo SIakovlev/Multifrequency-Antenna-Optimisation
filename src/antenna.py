@@ -133,6 +133,8 @@ class Antenna:
         # create a mask
         currents = np.zeros_like(self.I)
         for i, elem in enumerate(self.configuration):
+            if elem is None:
+                continue
             currents[elem, i] = np.exp(J[i])
         return np.split(currents.flatten().reshape(-1, 1), self.n_currents)
 
@@ -141,6 +143,8 @@ class Antenna:
             return None
         mask = np.zeros_like(self.I, dtype=bool)
         for i, elem in enumerate(self.configuration):
+            if elem is None:
+                continue
             mask[elem, i] = True
         return mask
 
