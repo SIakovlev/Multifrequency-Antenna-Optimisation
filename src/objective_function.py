@@ -21,6 +21,13 @@ def g(A, x, b, weight, offset=0, mask=None):
         return grads
 
 
+def f_temp(A, x, b, weight, offset=0):
+    result = 0
+    for A_i, x_i, b_i, w_i in zip(A, x, b, weight):
+        result += w_i * np.linalg.norm(A_i @ x_i - abs(b_i), 2) ** 2
+    return result
+
+
 def f(A, x, b, weight, offset=0):
     result = 0
     for A_i, x_i, b_i, w_i in zip(A, x, b, weight):
