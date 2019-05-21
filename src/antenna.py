@@ -47,7 +47,11 @@ class Antenna:
         self.__eps = None
 
     def info(self):
-        pass
+        print(f"Antenna configuration:")
+        print(f"\t- number of elements: {self.N}")
+        print(f"\t- distance between elements: {self.d}")
+        print(f"\t- beam wavelengths: {self.lambdas}")
+        print(f"\t- beam resolution: {self.beam_resolution}")
 
     def plot_current_distribution(self, figsize=(10, 5), save=False):
 
@@ -128,7 +132,6 @@ class Antenna:
 
     def set_currents(self, J):
         if self.configuration is None:
-            J = J.reshape(-1, 1)
             return np.split(np.exp(J.reshape(-1, 1)), self.n_currents)
         # create a mask
         currents = np.zeros_like(self.I)
