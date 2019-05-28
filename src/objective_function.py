@@ -21,6 +21,12 @@ def g(A, x, b, weight, offset=0, mask=None):
         return grads
 
 
+def L(A, x, b, weight, g, lam, x0, offset=0):
+    result = f_lin(A, x, b, weight, x0, offset)
+    result += abs(float(lam.T @ g))
+    return result
+
+
 def f_temp(A, x, b, weight, offset=0):
     result = 0
     for A_i, x_i, b_i, w_i in zip(A, x, b, weight):
@@ -32,6 +38,15 @@ def f(A, x, b, weight, offset=0):
     result = 0
     for A_i, x_i, b_i, w_i in zip(A, x, b, weight):
         result += w_i * np.linalg.norm(abs(A_i @ x_i) ** 2 - abs(b_i) ** 2 - offset, 2) ** 2
+    return result
+
+
+def f_lin(A, x, b, weight, x0, offset=0):
+    result = 0
+    for A_i, x_i, b_i, w_i, x0_i in zip(A, x, b, weight, x0):
+        for k in range(A_i.shape[0]):
+            Q_k = np.real(A_i[k, :].reshape(1, -1).conj().T @ A_i[k, :].reshape(1, -1))
+            result += w_i * np.linalg.norm(x0_i.T @ Q_k @ x0_i + (Q_k @ x0_i * x0_i).T@(x_i - x0_i) - abs(b_i[k, :]) ** 2 - offset, 2) ** 2
     return result
 
 
