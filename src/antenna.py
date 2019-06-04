@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib2tikz
 from scipy.optimize import minimize, LinearConstraint, Bounds, check_grad, BFGS
 from utils import linear_phase_shift_matrix
-from objective_function import f, g, h
+from objective_function import f, g, h, L, f_lin
 
 
 class Antenna:
@@ -34,6 +34,8 @@ class Antenna:
         # self.plot_ref_beams()
 
         self.objective = None
+        self.objective_lin = None
+        self.L = None
         self.jac = None
         self.hess = None
         self.cons = []
@@ -43,8 +45,8 @@ class Antenna:
 
         self.I = np.zeros(shape=(self.n_currents, self.N))
 
-        self.__M = None
-        self.__eps = None
+        self.M = None
+        self.eps = None
 
     def info(self):
         print(f"Antenna configuration:")
@@ -62,7 +64,7 @@ class Antenna:
         plt.ylabel(r"Current amplitude")
         plt.xlabel(r"Antenna element number")
         for i, (signal, label) in enumerate(zip(signals, plot_names)):
-            plt.stem(signal, linefmt=f"C{i}", markerfmt=f"C{i}o", basefmt=f"C{i}", label=label)
+            plt.stem(signal, linefmt=f"C{i}", markerfmt=f"C{i}o", basefmt=f"C{i}", label=label, use_line_collection=True)
         plt.grid(True)
         plt.legend()
         if save:
@@ -122,6 +124,23 @@ class Antenna:
             return f(self.afs, list_J, self.beams, weights, offset=offset)
         self.objective = objective
 
+    def set_objective_lin(self, weights, offset=0):
+        def objective(J, J0):
+            list_J = self.set_currents(J)
+            list_J0 = self.set_currents(J0)
+            return f_lin(self.afs, list_J, self.beams, weights, list_J0, offset=offset)
+        self.objective_lin = objective
+
+    def set_lagrangian(self, weights, offset=0):
+        # B = np.block([[0*np.eye(self.N), np.eye(self.N)], [np.eye(self.N), 0*np.eye(self.N)]])
+
+        def lagrangian(J, lam, J0):
+            list_J = self.set_currents(J)
+            list_J0 = self.set_currents(J0)
+            g = self.M @ J.reshape(-1, 1) + self.eps
+            return L(self.afs, list_J, self.beams, weights, g, lam, list_J0, offset=offset)
+        self.L = lagrangian
+
     def set_callback(self):
         def callback(J, info):
             print(f"Gradient check: {check_grad(self.objective, self.jac, J)}")
@@ -164,10 +183,10 @@ class Antenna:
         else:
             temp = np.array([True if i in [0, 1] else False for i in range(self.n_currents)])
             template = list(set(itertools.permutations(temp, len(temp))))
-            self.__M = np.array(np.bmat([[np.eye(self.N) if elem else np.eye(self.N) * 0 for elem in template_i]
-                                         for template_i in template]))
-            self.__eps = eps
-            self.cons.append(LinearConstraint(self.__M, -np.inf, -eps))
+            self.M = np.array(np.bmat([[np.eye(self.N) if elem else np.eye(self.N) * 0 for elem in template_i]
+                                       for template_i in template]))
+            self.eps = eps
+            self.cons.append(LinearConstraint(self.M, -np.inf, -eps))
 
     def set_power_constraint(self, delta):
 
@@ -207,7 +226,7 @@ class Antenna:
                 raise ValueError("Constraints are not set!")
 
             if x0 is None:
-                x0 = np.linalg.lstsq(self.__M, - np.ones((self.__M.shape[0], 1)) * self.__eps, rcond=None)[0].reshape(-1, )
+                x0 = np.linalg.lstsq(self.M, - np.ones((self.M.shape[0], 1)) * self.eps, rcond=None)[0].reshape(-1, )
 
         result = minimize(fun=self.objective,
                           x0=x0,
@@ -227,6 +246,66 @@ class Antenna:
         #     print(self.__M @ result.x.reshape(-1, 1))
 
         self.I = self.set_currents(result.x)
+        return result.fun, result.x
+
+    def get_optimal_current_allocation_lin(self, params, x_lin, x0=None, jac=True, hess=True, cons=True):
+        """
+
+        The main routine where optimal current distribution is calculated for multiple currents at different frequencies
+        """
+
+        if self.objective is None:
+            raise ValueError("Objective function is not set!")
+
+        if cons:
+            if not self.cons:
+                raise ValueError("Constraints are not set!")
+
+            if x0 is None:
+                x0 = np.linalg.lstsq(self.M, - np.ones((self.M.shape[0], 1)) * self.eps, rcond=None)[0].reshape(-1, )
+
+        result = minimize(fun=self.objective_lin,
+                          x0=x0,
+                          args=(x_lin,),
+                          method='trust-constr',
+                          jac=self.jac if jac else '3-point',
+                          hess=self.hess if hess else BFGS(),
+                          constraints=self.cons,
+                          callback=self.callback,
+                          options=params["options"],
+                          bounds=self.bounds
+                          )
+
+        # print()
+        # print(result.v)
+        # print()
+        # if cons:
+        #     print(self.__M @ result.x.reshape(-1, 1))
+
+        self.I = self.set_currents(result.x)
+        return result.fun, result.x
+
+    def get_dual_solution(self, params, x_lin, lam, x0=None):
+        """
+
+        The main routine where optimal current distribution is calculated for multiple currents at different frequencies
+        """
+
+        if self.objective is None:
+            raise ValueError("Objective function is not set!")
+
+        if x0 is None:
+            x0 = np.ones(self.N * self.n_currents)
+
+        result = minimize(fun=self.L,
+                          x0=x0,
+                          args=(lam, x_lin, ),
+                          method='trust-constr',
+                          jac='3-point',
+                          hess=BFGS(),
+                          callback=self.callback,
+                          options=params["options"],
+                          )
         return result.fun, result.x
 
     @staticmethod
@@ -251,11 +330,11 @@ class Antenna:
         return A.astype(dtype=np.complex128)
 
     @staticmethod
-    def hamming_ref_beam(N, A):
+    def hamming_ref_beam(N, A, scaling=1):
 
         weights = np.hamming(N)
         weights = weights / np.linalg.norm(weights, 2)
-        return A @ weights.reshape(-1, 1)
+        return scaling * (A @ weights.reshape(-1, 1))
 
 
 
