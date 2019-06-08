@@ -2,6 +2,29 @@ import numpy as np
 import scipy
 
 
+class Objective:
+    """
+    Base class for all the custom objective functions
+    """
+
+    def __init__(self):
+        pass
+
+    def __call__(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def jac(self):
+        pass
+
+    def hess(self):
+        pass
+
+
+class ObjectiveExp(Objective):
+
+    def __init__(self):
+
+
 def g(A, x, b, weight, offset=0, mask=None):
     grad_list = []
     for A_i, x_i, b_i, w_i in zip(A, x, b, weight):
