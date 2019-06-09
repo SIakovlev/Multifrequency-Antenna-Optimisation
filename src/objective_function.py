@@ -1,5 +1,6 @@
 import numpy as np
 import scipy
+from scipy.optimize import minimize, LinearConstraint, Bounds, check_grad, BFGS
 
 
 class Objective:
@@ -19,26 +20,76 @@ class Objective:
     def hess(self, x):
         raise NotImplementedError
 
+    def optimise(self, x0, constraints, bounds, options, method='trust-constr', jac='3-point', hess=BFGS(), callback=None):
+        raise NotImplementedError
+
 
 class L2PowerExp(Objective):
 
-    def __init__(self, A, b, weights, offset=0, mask=None):
+    def __init__(self, A, b, offset=0, mask=None):
         super(L2PowerExp, self).__init__()
 
-        self.A = A
-        self.b = b
-        self.weights = weights
+        self.A = scipy.linalg.block_diag(*A)
+        self.b = np.concatenate(b)
         self.offset = offset
         self.mask = mask
 
     def __call__(self, x):
-        pass
+        x = np.exp(x).reshape(-1, 1)
+        return np.linalg.norm(abs(self.A @ x) ** 2 - abs(self.b) ** 2 - self.offset, 2) ** 2
 
     def jac(self, x):
-        pass
+
+        x = np.exp(x).reshape(-1, 1)
+
+        grad = 0
+        for k in range(self.A.shape[0]):
+            Q_k = np.real(self.A[k, :].reshape(1, -1).conj().T @ self.A[k, :].reshape(1, -1))
+            grad += 4 * (x.T @ Q_k @ x - abs(self.b[k, :]) ** 2 - self.offset) * Q_k @ x * x
+
+        if self.mask is None:
+            return grad.reshape(-1, )
+        else:
+            grads = grad.reshape(len(x), -1)
+            grads = np.sum(grads * self.mask, axis=0)
+            return grads
 
     def hess(self, x):
-        pass
+        hess_list = []
+        for A_i, x_i, b_i, w_i in zip(self.A, x, self.b):
+
+            hess_k = 0
+            for k in range(A_i.shape[0]):
+                Q_k = np.real(A_i[k, :].reshape(1, -1).conj().T @ A_i[k, :].reshape(1, -1))
+                t0 = Q_k @ x_i * x_i
+                t1 = x_i.T @ Q_k @ x_i - abs(b_i[k, :]) ** 2 - self.offset
+                hess_k += 8 * t0 @ ((x_i.T @ Q_k) * x_i.T) \
+                          + 4 * t1 * np.diag(x_i.squeeze()) @ Q_k @ np.diag(x_i.squeeze()) + 4 * t1 * np.diag(
+                    t0.squeeze())
+
+            hess_list.append(hess_k)
+
+        if self.mask is not None:
+            hess_list = [np.sum(np.array(hess_list), axis=0)]
+        result = scipy.linalg.block_diag(*hess_list)
+        return result
+
+    def optimise(self, x0, constraints, bounds, options, method='trust-constr', jac='3-point', hess=BFGS(), callback=None):
+
+        result = minimize(fun=self,
+                          x0=x0,
+                          method=method,
+                          jac=jac,
+                          hess=hess,
+                          constraints=constraints,
+                          callback=callback,
+                          options=options,
+                          bounds=bounds
+                          )
+
+        result.x = np.exp(result.x)
+
+        return result
 
 
 class L2Power(Objective):
@@ -94,6 +145,21 @@ class L2Power(Objective):
         if self.mask is not None:
             hess_list = [np.sum(np.array(hess_list), axis=0)]
         result = scipy.linalg.block_diag(*hess_list)
+        return result
+
+    def optimise(self, x0, constraints, bounds, options, method='trust-constr', jac='3-point', hess=BFGS(), callback=None):
+
+        result = minimize(fun=self,
+                          x0=x0,
+                          method=method,
+                          jac=jac,
+                          hess=hess,
+                          constraints=constraints,
+                          callback=callback,
+                          options=options,
+                          bounds=bounds
+                          )
+
         return result
 
 
@@ -163,5 +229,3 @@ def h(A, x, b, weight, offset=0, mask=None):
         hess_list = [np.sum(np.array(hess_list), axis=0)]
     result = scipy.linalg.block_diag(*hess_list)
     return result
-
-
