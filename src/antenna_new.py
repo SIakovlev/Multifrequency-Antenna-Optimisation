@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib2tikz
 from scipy.optimize import minimize, LinearConstraint, Bounds, check_grad, BFGS
 from utils import linear_phase_shift_matrix
-from objective_function import L2Power, L2PowerExp
+from objective_function import L2Power, L2PowerExp, L2PowerDecomposed
 
 
 class Antenna:
@@ -107,7 +107,7 @@ class Antenna:
 
     def set_objective(self, offset=0):
 
-        self.objective_fun = L2PowerExp(self.afs, self.beams, offset=offset, mask=self.get_current_mask())
+        self.objective_fun = L2Power(self.afs, self.beams, offset=offset, mask=self.get_current_mask())
 
         def objective(I):
             I = self.set_currents(I)
@@ -135,8 +135,8 @@ class Antenna:
 
     def set_currents(self, I):
         if self.configuration is None:
-            return I
-            # return np.split(I.reshape(-1, 1), self.n_currents)
+            # return I
+            return np.split(I.reshape(-1, 1), self.n_currents)
 
         # create a mask
         currents = np.zeros_like(self.I)
@@ -144,8 +144,8 @@ class Antenna:
             if elem is None:
                 continue
             currents[elem, i] = I[i]
-        # return np.split(currents.flatten().reshape(-1, 1), self.n_currents)
-        return currents.flatten().reshape(-1, )
+        return np.split(currents.flatten().reshape(-1, 1), self.n_currents)
+        # return currents.flatten().reshape(-1, )
 
     def get_current_mask(self):
         if self.configuration is None:
@@ -189,6 +189,15 @@ class Antenna:
             self.bounds = Bounds(-np.inf * np.ones(self.N * self.n_currents),
                                  np.log(delta) * np.ones(self.N * self.n_currents))
 
+    def set_positivity_constraint(self):
+        """
+
+        :return:
+        """
+
+        self.bounds = Bounds(0 * np.ones(self.N * self.n_currents),
+                             np.inf * np.ones(self.N * self.n_currents))
+
     def set_phase_shift(self, val_list):
         for i, val in enumerate(val_list):
             self.afs[i] = self.afs[i] @ linear_phase_shift_matrix(self.N, val)
@@ -216,6 +225,7 @@ class Antenna:
                 x0 = np.linalg.lstsq(self.M, - np.ones((self.M.shape[0], 1)) * self.eps, rcond=None)[0].reshape(-1, )
 
         result = self.objective_fun.optimise(x0=x0,
+                                             fun=self.objective,
                                              method='trust-constr',
                                              jac=self.jac if jac else '3-point',
                                              hess=self.hess if hess else BFGS(),
