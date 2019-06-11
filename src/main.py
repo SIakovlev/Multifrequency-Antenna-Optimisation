@@ -10,11 +10,20 @@ def main(**kwargs):
 
     antenna = Antenna(antenna_params)
     # antenna.set_configuration([1, 1, 1, 1, 1, 1, 0, 0, 0, 0])
+    # antenna.set_phase_shift([0.2, 0.5])
     antenna.set_objective(weights=[1.0, 1.0])
     antenna.set_jacobian(weights=[1.0, 1.0])
     antenna.set_hessian(weights=[1.0, 1.0])
-    antenna.set_allocation_constraint(7)
-    antenna.get_optimal_current_allocation(opt_params, x0=np.ones(200), cons=False, jac=True, hess=True)
+    probe = None
+    for e in np.arange(0, 7, 0.01):
+        antenna.set_allocation_constraint(e)
+        _, probe = antenna.get_optimal_current_allocation(opt_params, x0=probe, cons=True, jac=True, hess=True)
+    # probe = np.random.rand(18)
+    # probe = np.array([0.52746065, 0.04358334, 0.30497155, 0.06462851, 0.23176169, 0.6587629,
+    #                   0.72621427, 0.98162255, 0.13840873, 0.58926654, 0.8000295, 0.14332016,
+    #                   0.87760155, 0.87915659, 0.68831623, 0.15874958, 0.04225982, 0.61493903])
+                      # 0.03477898, 0.8444315])
+    # print(f"Probe signal: \n{probe}\n")
 
     antenna.plot_current_distribution()
     antenna.plot_formed_beams()
@@ -25,7 +34,7 @@ def main(**kwargs):
     #
     # antenna2.plot_current_distribution()
     # antenna2.plot_formed_beams()
-    # probe = np.ones(20)
+    # probe = np.ones(200)
     # print(f"Probe signal: \n{probe}\n")
     # print(f"Objective_f: \n{antenna2.objective(probe)}\n")
     # print(f"Objective_grad_f: \n{antenna2.jac(probe)}\n")

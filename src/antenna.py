@@ -170,7 +170,7 @@ class Antenna:
             mask[elem, i] = True
         return mask
 
-    def set_allocation_constraint(self, eps):
+    def set_allocation_constraint(self, eps, replace=True):
 
         """
         Constraint of the form Mx <= -eps (or -Mx - eps >= 0)
@@ -186,7 +186,10 @@ class Antenna:
             self.M = np.array(np.bmat([[np.eye(self.N) if elem else np.eye(self.N) * 0 for elem in template_i]
                                        for template_i in template]))
             self.eps = eps
-            self.cons.append(LinearConstraint(self.M, -np.inf, -eps))
+            if replace:
+                self.cons = [LinearConstraint(self.M, -np.inf, -eps)]
+            else:
+                self.cons.append(LinearConstraint(self.M, -np.inf, -eps))
 
     def set_power_constraint(self, delta):
 
@@ -239,11 +242,11 @@ class Antenna:
                           bounds=self.bounds
                           )
 
-        # print()
-        # print(result.v)
-        # print()
-        # if cons:
-        #     print(self.__M @ result.x.reshape(-1, 1))
+        print()
+        print(result.v)
+        print()
+        if cons:
+            print(self.M @ result.x.reshape(-1, 1))
 
         self.I = self.set_currents(result.x)
         return result.fun, result.x
