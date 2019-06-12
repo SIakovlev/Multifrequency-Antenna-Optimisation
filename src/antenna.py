@@ -1,6 +1,7 @@
 import numpy as np
 import itertools
 import scipy
+from scipy.signal.windows import chebwin
 import matplotlib as mpl
 mpl.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -334,8 +335,8 @@ class Antenna:
 
     @staticmethod
     def hamming_ref_beam(N, A, scaling=1):
-
-        weights = np.hamming(N)
+        # weights = np.hamming(N)
+        weights = chebwin(N, 100)
         weights = weights / np.linalg.norm(weights, 2)
         return scaling * (A @ weights.reshape(-1, 1))
 
