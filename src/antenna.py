@@ -82,7 +82,8 @@ class Antenna:
         plt.ylabel(r"Beam amplitude")
         plt.xlabel(r"Angle (rad)")
         for i, (signal, label) in enumerate(zip(signals, plot_names)):
-            plt.plot(self.phi_range, signal, color=f"C{i}", label=label)
+            plt.plot(np.rad2deg(self.phi_range), signal, color=f"C{i}", label=label)
+        plt.yscale('log')
         plt.grid(True)
         plt.legend()
         if save:
@@ -101,6 +102,7 @@ class Antenna:
         for i, (signal, label) in enumerate(zip(signals, plot_names)):
             plt.plot(self.phi_range, signal, color=f"C{i}", label=label)
         plt.grid(True)
+        plt.yscale('log')
         plt.legend()
         if save:
             matplotlib2tikz.save('../results/formed_beams.tex')
@@ -337,8 +339,8 @@ class Antenna:
     def hamming_ref_beam(N, A, scaling=1):
         # weights = np.hamming(N)
         weights = chebwin(N, 100)
-        weights = weights / np.linalg.norm(weights, 2)
-        return scaling * (A @ weights.reshape(-1, 1))
+        return scaling * (A @ weights.reshape(-1, 1))/max(abs(A @ weights.reshape(-1, 1)))
+        # return scaling * (A @ weights.reshape(-1, 1))
 
 
 
